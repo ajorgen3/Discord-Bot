@@ -368,4 +368,4 @@ async def initializeAristocrats():
     global aristocrats
     aristocrats = [await bot.fetch_user(121007634714329089), await bot.fetch_user(237353382229049345)]
 
-bot.run('MTAxNTA3MjU0MTA0NTQ0MDUyMw.G4p2KB.LXz1f_MjhytJOKqBSTJ2oY4XpLofu2u47YmUio')
+bot.run('Bot token removed for security')
