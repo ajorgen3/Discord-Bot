@@ -7,6 +7,7 @@ import statistics
 import matplotlib as MPL
 import matplotlib.pyplot as plot
 import matplotlib.dates as MPLDates
+import sqlite3
 
 #####################
 ##### Variables #####
@@ -27,7 +28,8 @@ userStatsMap = {}
 # Maps the name of the ranking chart (string) to a sorted list of tuples. Each tuple contains the user being ranked (index 0)
 # and the data being ranked by (index 1). The data is sorted by index 1.
 rankingsMap = {}
-
+#sqlite3 connection
+conn = sqlite3.connect('test.db')
 
 ###################
 ###### Events #####
@@ -67,13 +69,8 @@ async def test2(context):
     for count in messageCountList:
         print(str(count) + "\n")
 
-@bot.command(name='test3')
-async def test3(context):
-    channel = context.message.channel
-    user = getUser(context)
-
-    obj = datetime.date(2019, 4, 13)
-    print(obj)
+@bot.command(name='DBTest')
+async def DBTest(context):
 
 
 ##############################
@@ -119,13 +116,16 @@ async def stats(context):
 
     await message.channel.send("Note: All stats are based exclusively on days the user sent messages.")
 
-    await message.channel.send(user.mention + "'s statistics:\nTotal message count: " + str(userStatsMap[user]["total messages"])
-                               + "\nMean daily messages: " + str(userStatsMap[user]["mean"]) + "\nMedian daily messages: "+
-                               str(userStatsMap[user]["median"])+ "\nMode daily messages: " + str(userStatsMap[user]["mode"])
-                               + "\nMax messages in 1 day: " + str(userStatsMap[user]["maximum"])+ "\nMin messages in 1 day: "
-                               + str(userStatsMap[user]["minimum"]) + "\nRange: " + str(userStatsMap[user]["minimum"])
-                               + " - " + str(userStatsMap[user]["maximum"]) +"\nStandard Deviation: " + str(userStatsMap[user]["SD"])
-                               + "\nNumber of days active: " + str(userStatsMap[user]["days active"]))
+    await message.channel.send(user.mention+ "'s statistics:"
+                                + "\nTotal message count: "+ str(userStatsMap[user]["total messages"])
+                                + "\nMean daily messages: " + str(userStatsMap[user]["mean"])
+                                + "\nMedian daily messages: "+ str(userStatsMap[user]["median"])
+                                + "\nMode daily messages: " + str(userStatsMap[user]["mode"])
+                                + "\nMax messages in 1 day: " + str(userStatsMap[user]["maximum"])
+                                + "\nMin messages in 1 day: " + str(userStatsMap[user]["minimum"])
+                                + "\nRange: " + str(userStatsMap[user]["minimum"]) + " - " + str(userStatsMap[user]["maximum"])
+                                + (("\nStandard Deviation: " + str(userStatsMap[user]["SD"])) if (userStatsMap[user]["days active"] >= 2) else "")
+                                + "\nNumber of days active: " + str(userStatsMap[user]["days active"]))
 
 
 ########################
@@ -154,7 +154,7 @@ async def messageChart(context):
 ##### Graphs #####
 ##################
 
-@bot.command(name="messageovertimegraph")
+@bot.command(name="messageovertimegraph")   # bugged, see general for thoughts yesterday. instead of making a line graph, try doing a scatterplot instead
 async def messageovertimegraph(context):
     channel = context.message.channel
     user = getUser(context)
@@ -173,7 +173,7 @@ async def messageovertimegraph(context):
         i += 1
 
     plot.gca().xaxis.set_major_formatter(MPLDates.DateFormatter('%m/%d/%Y'))
-    plot.gca().xaxis.set_major_locator(MPLDates.DayLocator(interval=int(len(dateList)/4)))
+    plot.gca().xaxis.set_major_locator(MPLDates.DayLocator(interval=int(len(dateList)/4))) # use difference between first and last date instead of length. length only works for active people
     plot.plot(dateList, totalMessageDates)
     plot.gcf().autofmt_xdate()
     plot.savefig("messageovertimegraph.png")
@@ -239,7 +239,7 @@ async def joinDate(context):
     message = context.message
     user = getUser(context)
 
-    await message.channel.send(user.mention + "joined on: " + str(user.joined_at))
+    await message.channel.send(user.mention + " joined on: " + str(user.joined_at))
 
 
 ##########################
@@ -316,7 +316,8 @@ def initializeStats(guild):
     # general stats
     for user in guild.members:
         messageCountList = list(messageCountDatabase[user].values())
-
+        print("user: " + user.name);
+        print(messageCountList);
         userStatsMap[user] = {
             "total messages": sum(messageCountList),
             "mean": statistics.mean(messageCountList),
@@ -324,9 +325,11 @@ def initializeStats(guild):
             "mode": statistics.mode(messageCountList),
             "maximum": max(messageCountList),
             "minimum": min(messageCountList),
-            "SD": statistics.stdev(messageCountList),
             "days active": len(messageCountDatabase[user])
         }
+        if (userStatsMap[user]["days active"] >= 2):
+            userStatsMap[user]["SD"] = statistics.stdev(messageCountList)
+
         # a map that maps strings describing the ranking category to lists of maps that map users to their message count
         # sort the list by their map values
         rankingsMap["most message chart"].append((user, userStatsMap[user]["total messages"]))
@@ -366,6 +369,6 @@ def utc_to_local(utc_dt):
 # Intializes the aristocrats list with authorized users.
 async def initializeAristocrats():
     global aristocrats
-    aristocrats = [await bot.fetch_user(121007634714329089), await bot.fetch_user(237353382229049345)]
+    aristocrats = [await bot.fetch_user(1), await bot.fetch_user(2)]
 
-bot.run('Bot token removed for security')
+bot.run('')
