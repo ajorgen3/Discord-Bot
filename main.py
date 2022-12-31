@@ -8,6 +8,7 @@ import matplotlib as MPL
 import matplotlib.pyplot as plot
 import matplotlib.dates as MPLDates
 import sqlite3
+import os
 
 #####################
 ##### Variables #####
@@ -28,8 +29,10 @@ userStatsMap = {}
 # Maps the name of the ranking chart (string) to a sorted list of tuples. Each tuple contains the user being ranked (index 0)
 # and the data being ranked by (index 1). The data is sorted by index 1.
 rankingsMap = {}
+#database name
+DBName = "message_count_database.db"
 #sqlite3 connection
-conn = sqlite3.connect('test.db')
+conn = sqlite3.connect(DBName, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 
 ###################
 ###### Events #####
@@ -71,7 +74,45 @@ async def test2(context):
 
 @bot.command(name='DBTest')
 async def DBTest(context):
+    global conn
+    conn.close()
+    filepath = "C:\\Users\\mangu\\PycharmProjects\\Discord Bot\\test.db"
+    os.remove(filepath)
 
+    conn = sqlite3.connect('test.db')
+    conn.execute('''CREATE TABLE IF NOT EXISTS COMPANY
+             (ID INT PRIMARY KEY    NOT NULL,
+             NAME           TEXT    NOT NULL,
+             AGE            INT     NOT NULL,
+             ADDRESS        CHAR(50),
+             SALARY         REAL);''')
+    print("Table created successfully");
+
+    conn.execute("INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) \
+                VALUES (0, 'Bob', 40, 'bob str', 4.0 )")
+    conn.execute("INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) \
+                VALUES (1, 'bill', 41, 'bill str', 4 )")
+
+    conn.execute("INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) \
+          VALUES (2, 'Paul', 32, 'California', 20000.00 )");
+    conn.execute("INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) \
+          VALUES (3, 'Allen', 25, 'Texas', 15000.00 )");
+    conn.execute("INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) \
+          VALUES (4, 'Teddy', 23, 'Norway', 20000.00 )");
+    conn.execute("INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) \
+          VALUES (5, 'Mark', 25, 'Rich-Mond ', 65000.00 )");
+
+    conn.commit()
+    print("values added")
+
+    cursor = conn.execute("SELECT id, name, address, salary FROM COMPANY")
+    for row in cursor:
+        print("ID = ", row[0])
+        print("NAME = ", row[1])
+        print("ADDRESS = ", row[2])
+        print("SALARY = ", row[3], "\n")
+
+    print("select successful")
 
 ##############################
 ##### Message Statistics #####
@@ -256,15 +297,33 @@ async def update(context):  # remakes the database of message counts
     messageOriginal = context.message
     guild = context.guild
     user = messageOriginal.author
-    global totalMessages
+    global totalMessages, conn, DBName
 
     if (isAristocrat(user)):
         await messageOriginal.channel.send("Welcome, Aristocrat. Starting update...")
         members = guild.members
 
+        conn.close()
+        filepath = "C:\\Users\\mangu\\PycharmProjects\\Discord Bot\\" + DBName
+        os.remove(filepath)
+        conn = sqlite3.connect(DBName, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        conn.execute('''CREATE TABLE IF NOT EXISTS MessageCounts
+                    (ID             INT PRIMARY KEY    NOT NULL,
+                    DATE            TIMESTAMP
+                    MESSAGECOUNT    INT DEFAULT 0);''')
+        await messageOriginal.channel.send("Message count table created.")
+
         for user in members:
             messageCountDatabase[user] = {}
+            #insert cols into MessageCounts for each date
+            dateTemp = utc_to_local(guild.created_at)
+            dateTemp = datetime(dateTemp.year, dateTemp.month, dateTemp.day)
+            while (dateTemp <= datetime.today()):
+                conn.execute("INSERT INTO MessageCounts (ID, DATE) \
+                             VALUES (?, ?);", user.id, dateTemp)
+                dateTemp = dateTemp + datetime.timedelta(days=1)
 
+        # index all messages
         for channel in guild.channels:  # for each channel
             if (isinstance(channel, discord.CategoryChannel) or isinstance(channel, discord.VoiceChannel)):
                 continue
@@ -286,6 +345,13 @@ async def update(context):  # remakes the database of message counts
                         "problem encountered for user: " + message.author.name + ". Message link: " + message.jump_url)
                 if (totalMessages % 1000 == 0):
                     print(str(totalMessages) + " messages indexed.")
+
+        # update database
+        # for each user
+            # for each date
+                # update
+        conn.execute("UPDATE MessageCounts")
+
         initializeStats(guild)
         endTime = time.time()
 
@@ -337,7 +403,6 @@ def initializeStats(guild):
     # stats requiring all users to be defined
     rankingsMap["most message chart"] = sorted(rankingsMap["most message chart"], key=lambda x: x[1], reverse=True)
 
-
 # Returns True if the argument is in aristocrats, False otherwise
 def isAristocrat(user):
     global aristocrats
@@ -369,6 +434,6 @@ def utc_to_local(utc_dt):
 # Intializes the aristocrats list with authorized users.
 async def initializeAristocrats():
     global aristocrats
-    aristocrats = [await bot.fetch_user(1), await bot.fetch_user(2)]
+    aristocrats = [await bot.fetch_user(), await bot.fetch_user()]
 
 bot.run('')
