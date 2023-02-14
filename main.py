@@ -3,8 +3,6 @@ import time
 import discord
 from discord.ext.commands import Bot
 from discord import Intents
-import statistics
-import matplotlib as MPL
 import matplotlib.pyplot as plt
 import matplotlib.dates as MPLDates
 import sqlite3
@@ -20,15 +18,6 @@ intents = Intents.all()
 bot = Bot(intents=intents, command_prefix='~')
 # A list of users authorized to use the administrative commands
 aristocrats = []
-# Maps users to another map that maps datetime objects to a message count.
-messageCountDatabase = {}
-# The total number of messages in the guild
-totalMessages = 0
-# Maps users to another map that maps names of statistics (string) to that statistic for the user.
-userStatsMap = {}
-# Maps the name of the ranking chart (string) to a sorted list of tuples. Each tuple contains the user being ranked (index 0)
-# and the data being ranked by (index 1). The data is sorted by index 1.
-rankingsMap = {}
 #database name. Set to test server by default
 DBName = "951979508649562162.db"
 #sqlite3 connection
@@ -50,39 +39,6 @@ async def on_ready():
 #########################
 ##### Test Commands #####
 #########################
-
-@bot.command(name='test')
-async def test(context):
-    message = context.message
-    user = getUser(context)
-
-    await message.channel.send(len(messageCountDatabase))
-    await message.channel.send(len(messageCountDatabase[user]))
-
-    await message.channel.send("completed for user: " + user.mention)
-    await message.channel.send("command complete")
-
-
-@bot.command(name='test2')
-async def test2(context):
-    channel = context.message.channel
-    user = getUser(context)
-
-    messageCountList = list(messageCountDatabase[user].values())
-    for count in messageCountList:
-        print(str(count) + "\n")
-
-@bot.command(name='test3')
-async def test3(context):
-    channel = context.message.channel
-    user = getUser(context)
-    global conn, DBName
-
-    await getServer(context)
-
-    cursor = conn.execute("SELECT DATE, MESSAGECOUNT FROM MessageCounts WHERE ID=?;", (user.id,))
-    for row in cursor:
-        print("date: ", row[0], " message count: ", row[1])
 
 @bot.command(name='DBTest')
 async def DBTest(context):
@@ -377,7 +333,9 @@ async def update(context):  # remakes the database of message counts
     messageOriginal = context.message
     guild = context.guild
     user = messageOriginal.author
-    global totalMessages, conn, DBName
+    messageCountDatabase = {}
+    totalMessages = 0
+    global conn, DBName
 
     if (isAristocrat(user)):
         await messageOriginal.channel.send("Welcome, Aristocrat. Starting update...")
@@ -385,7 +343,7 @@ async def update(context):  # remakes the database of message counts
 
         conn.close()
         DBName = str(guild.id) + ".db"
-        filepath = "C:\\Users\\mangu\\PycharmProjects\\DiscordBot\\" + DBName
+        filepath = "C:\\Users\\mangu\\PycharmProjects\\Discord Bot\\" + DBName
         os.remove(filepath)
         conn = sqlite3.connect(DBName, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         conn.execute('''CREATE TABLE IF NOT EXISTS MessageCounts
@@ -435,10 +393,8 @@ async def update(context):  # remakes the database of message counts
                     conn.execute("INSERT INTO MessageCounts (ID, DATE) \
                                 VALUES (?, ?);", (user.id, dateTemp))
                 dateTemp = dateTemp + timedelta(days=1)
-
         conn.commit()
 
-        initializeStats(guild)
         endTime = time.time()
 
         seconds = int(endTime - startTime)
@@ -455,37 +411,6 @@ async def update(context):  # remakes the database of message counts
 ###################
 ##### Helpers #####
 ###################
-
-# Calculates a variety of statistics for each member of the guild and places it in userStatsMap. It also calculates
-# leaderboards and places them in rankingsMap
-def initializeStats(guild):
-    global userStatsMap, rankingsMap
-
-    rankingsMap = {
-        "most message chart": []
-    }
-
-    # general stats
-    for user in guild.members:
-        messageCountList = list(messageCountDatabase[user].values())
-        userStatsMap[user] = {
-            "total messages": sum(messageCountList),
-            "mean": statistics.mean(messageCountList),
-            "median": statistics.median(messageCountList),
-            "mode": statistics.mode(messageCountList),
-            "maximum": max(messageCountList),
-            "minimum": min(messageCountList),
-            "days active": len(messageCountDatabase[user])
-        }
-        if (userStatsMap[user]["days active"] >= 2):
-            userStatsMap[user]["SD"] = statistics.stdev(messageCountList)
-
-        # a map that maps strings describing the ranking category to lists of maps that map users to their message count
-        # sort the list by their map values
-        rankingsMap["most message chart"].append((user, userStatsMap[user]["total messages"]))
-
-    # stats requiring all users to be defined
-    rankingsMap["most message chart"] = sorted(rankingsMap["most message chart"], key=lambda x: x[1], reverse=True)
 
 # Returns True if the argument is in aristocrats, False otherwise
 def isAristocrat(user):
@@ -539,4 +464,4 @@ async def getServer(context):
     DBName = str(context.message.guild.id) + ".db"
     conn = sqlite3.connect(DBName, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 
-bot.run('MTAxNTA3MjU0MTA0NTQ0MDUyMw.G_i4l4.v91kz0-7QX5NsGzs3EZGiuW3BD3z2Dp6C3QIEc')
+bot.run('')
