@@ -87,7 +87,7 @@ async def DBTest(context):
 ##############################
 
 # Prints the total number of messages for the server in the channel the command was sent in.
-@bot.command(name='totalservermessages')
+@bot.command(name='TotalServerMessages')
 async def totalServerMessages(context):
     global totalMessages, conn
 
@@ -99,7 +99,7 @@ async def totalServerMessages(context):
 
 # Prints the total number of messages for the target in the channel the command was sent in.
 # The target is determined by getUser()
-@bot.command(name='totalmessages')
+@bot.command(name='TotalMessages')
 async def totalUserMessages(context):
     message = context.message
     user = getUser(context)
@@ -112,7 +112,7 @@ async def totalUserMessages(context):
 
 # Prints the percent of the total messages in the server that were sent by the target in the channel the command was sent in.
 # The target is determined by getUser()
-@bot.command(name='percenttotal')
+@bot.command(name='PercentTotal')
 async def percentTotal(context):
     global totalMessages
     user = getUser(context)
@@ -129,8 +129,8 @@ async def percentTotal(context):
 
 # Prints a list of stats about the target in the channel the command was sent in.
 # The target is determined by getUser()
-# Stats: total messages sent, mean, median, mode, range, min, max, standard deviation, number of days active
-@bot.command(name='stats') # fix stats eventually to add median, mode, and standard deviation (if possible)
+# Stats: total messages sent, mean, range, max, min, number of days active
+@bot.command(name='Stats')
 async def stats(context):
     message = context.message
     user = getUser(context)
@@ -166,19 +166,22 @@ async def stats(context):
 # Prints a leaderboard of all members of the guild based on their message count in descending order. The target's place
 # on the leaderboard is printed in bold text. The leaderboard is printed in the channel the command was sent in.
 # The target is determined by getUser()
-@bot.command(name='messagechart')
+@bot.command(name='ActivityLeaderboard')
 async def messageChart(context):
     channel = context.message.channel
-    user = getUser(context)
+    users = getUserGraphs(context)
+    map = {}
     toPrint = "Top message chart:\n"
     place = 1
     global conn
 
     await getServer(context)
     cursor = conn.execute("SELECT ID, SUM(MESSAGECOUNT) FROM MessageCounts GROUP BY ID ORDER BY 2 DESC")
+    for user in users:
+        map[user.id] = True
 
     for row in cursor:
-        if (row[0] == user.id):
+        if (map.get(row[0])):
             toPrint += "**" + str(place) + ") " + (await bot.fetch_user(row[0])).display_name + " - " + str(row[1]) + "**\n"
         else:
             toPrint += str(place) + ") " + (await bot.fetch_user(row[0])).display_name + " - " + str(row[1]) + "\n"
@@ -193,7 +196,7 @@ async def messageChart(context):
 ##################
 
 # Graphs a users total messages sent over time. Can print for 1 or multiple users.
-@bot.command(name="messageovertimegraph")
+@bot.command(name="TotalMessagesGraph")
 async def messageovertimegraph(context):
     channel = context.message.channel
     users = getUserGraphs(context)
@@ -237,46 +240,18 @@ async def messageovertimegraph(context):
     plt.clf()
     plt.cla()
 
-#
-@bot.command(name="dailymessagesgraph")
-async def dailymessagesgraph(context):
-    channel = context.message.channel
-    user = getUser(context)
-    dateList = []
-    messageCounts = []
-    global conn
-
-    await getServer(context)
-
-    cursor = conn.execute("SELECT DATE, MESSAGECOUNT FROM MessageCounts WHERE ID=?", (user.id,))
-    for row in cursor:
-        dateList.append(row[0])
-        messageCounts.append(row[1])
-
-    cursor = conn.execute("SELECT COUNT(*) FROM MessageCounts WHERE ID=?", (user.id,))
-    plt.gca().xaxis.set_major_formatter(MPLDates.DateFormatter('%m/%d/%Y'))
-    plt.gca().xaxis.set_major_locator(MPLDates.DayLocator(interval=int((cursor.fetchone())[0] / 4)))
-    plt.plot(dateList, messageCounts)
-    plt.gcf().autofmt_xdate()
-    plt.savefig("messageovertimegraph.png")
-
-    with open('messageovertimegraph.png', 'rb') as img:
-        await channel.send(file=discord.File(img))
-
-    plt.clf()
-    plt.cla()
-
-
-@bot.command(name="dailymessagesgraphserver")
+# Graphs the users messages sent per day over time to show activity variance
+@bot.command(name="DailyMessagesGraph")
 async def dailymessagesgraphserver(context):
     channel = context.message.channel
+    users = getUserGraphs(context)
     dateList = {}
     messageCounts = {}
     global conn
 
     await getServer(context)
 
-    for user in context.message.guild.members:
+    for user in users:
         cursor = conn.execute("SELECT DATE, MESSAGECOUNT FROM MessageCounts WHERE ID=?", (user.id,))
         dateListT = []
         messageCountsT = []
@@ -291,7 +266,7 @@ async def dailymessagesgraphserver(context):
     plt.gca().xaxis.set_major_formatter(MPLDates.DateFormatter('%m/%d/%Y'))
     plt.gca().xaxis.set_major_locator(MPLDates.DayLocator(interval=int((cursorNumDays.fetchone())[0] / 4)))
 
-    for user in context.message.guild.members:
+    for user in users:
         plt.plot(dateList[user], messageCounts[user])
 
     plt.gcf().autofmt_xdate()
@@ -311,12 +286,36 @@ async def dailymessagesgraphserver(context):
 # prints the date on which the target joined the guild in the channel the command was sent in. If the target had previously
 # left the guild but rejoined, their most recent join date is sent.
 # The target is determined by getUser()
-@bot.command(name="joindate")
+@bot.command(name="Joined")
 async def joinDate(context):
     message = context.message
     user = getUser(context)
 
     await message.channel.send(user.mention + " joined on: " + str(user.joined_at))
+
+
+@bot.command(name="Help")
+async def help(context):
+    await context.message.channel.send("**Commands:**\n"
+                               "__Info__\n"
+                               "By default, a command will target the user who used it. For certain commands, tag one "
+                               "other user to use the command on them.\n"
+                               "Graphs and leaderboards default to the user who used the command. You may tag as many\n"
+                               "users as you want, and each will be added to the graph. You will need to tag yourself to\n"
+                               "add yourself to the graph with the others. Add \"all\" to include every user.\n"
+                               "__Message Statistics__\n"
+                               "*TotalServerMessages:* Prints the total number of messages for the server\n"
+                               "*TotalMessages:* Prints the total number of messages for the target user.\n"
+                               "*PercentTotal:* Prints what percent of total messages sent were sent by the target user.\n"
+                               "*Stats:* Prints a few statistics about the target user\n"
+                               "__Leaderboards__\n"
+                               "*ActivityLeaderboard:* Prints a leaderboard of all users in the server in order of number "
+                               "of messages sent, descending. The target user will be bolded\n"
+                               "__Graphs__\n"
+                               "*TotalMessagesGraph:* Graphs total messages sent over time for targeted users\n"
+                               "*DailyMessagesGraph:* Graphs messages sent per day over time for targeted users\n"
+                               "__Misc__\n"
+                               "*Joined:* Prints the join date of the target user\n")
 
 
 ##########################
@@ -327,7 +326,7 @@ async def joinDate(context):
 # initializeStats() is called near the end of the function to recalculate user stats based on the knew information.
 # The time it took to run the command will be printed along with a message informing the user that the command has completed.
 # update will only run if the user is in the aristocrat list. Otherwise, 'Permission denied.' will be printed.
-@bot.command(name='update')
+@bot.command(name='Update')
 async def update(context):  # remakes the database of message counts
     startTime = time.time()
     messageOriginal = context.message
@@ -464,4 +463,4 @@ async def getServer(context):
     DBName = str(context.message.guild.id) + ".db"
     conn = sqlite3.connect(DBName, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 
-bot.run('')
+bot.run('MTAxNTA3MjU0MTA0NTQ0MDUyMw.GAmSoS.OcbWXqCPfhMaFHFQjoP1N2Cx9ysizLh5mSFpK0')
